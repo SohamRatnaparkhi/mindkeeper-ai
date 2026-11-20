@@ -1,0 +1,360 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model ApiKeys {
+    userId    String
+    apiKey    String   @unique
+    createdAt DateTime @default(now())
+    isPrimary Boolean  @default(false)
+    User      User     @relation(fields: [userId], references: [id])
+
+    @@unique([userId, apiKey])
+}
+
+model Conversation {
+    id                 String               @id
+    title              String?
+    createdAt          DateTime             @default(now())
+    updatedAt          DateTime             @default(now())
+    userId             String
+    summary            String?
+    memoryIds          String[]
+    status             ConversationStatus   @default(ACTIVE)
+    User               User                 @relation(fields: [userId], references: [id])
+    Message            Message[]
+    SharedConversation SharedConversation[]
+
+    @@index([userId, updatedAt])
+}
+
+model Memory {
+    memId     String
+    chunkId   String
+    title     String
+    memType   String
+    memData   String
+    source    String?
+    tags      String[]
+    metadata  Json?
+    createdAt DateTime @default(now())
+    updatedAt DateTime
+    mindMapId String?
+    userId    String
+    MindMap   MindMap? @relation(fields: [mindMapId], references: [id])
+    User      User     @relation(fields: [userId], references: [id])
+
+    @@id([memId, chunkId])
+    @@index([memType])
+    @@index([tags])
+}
+
+model Message {
+    id                 String               @id
+    content            String
+    sender             String
+    createdAt          DateTime             @default(now())
+    conversationId     String
+    memoryId           String[]             @default([])
+    chunkIds           String[]             @default([])
+    questionId         String?
+    Conversation       Conversation         @relation(fields: [conversationId], references: [id])
+    WebSearchCitations WebSearchCitations[]
+
+    @@index([conversationId, createdAt])
+}
+
+model WebSearchCitations {
+    id        String  @id
+    url       String
+    title     String
+    content   String
+    messageId String
+    source    String
+    Message   Message @relation(fields: [messageId], references: [id])
+}
+
+model MindMap {
+    userId        String
+    id            String          @id
+    title         String
+    description   String?
+    createdAt     DateTime        @default(now())
+    updatedAt     DateTime        @updatedAt
+    Memory        Memory[]
+    SharedMindMap SharedMindMap[]
+
+    User User @relation(fields: [userId], references: [id])
+}
+
+model SharedMemory {
+    id                                 String     @id
+    fromUserId                         String
+    toUserId                           String
+    memoryId                           String
+    permission                         Permission
+    createdAt                          DateTime   @default(now())
+    User_SharedMemory_fromUserIdToUser User       @relation("SharedMemory_fromUserIdToUser", fields: [fromUserId], references: [id])
+    User_SharedMemory_toUserIdToUser   User       @relation("SharedMemory_toUserIdToUser", fields: [toUserId], references: [id])
+
+    @@unique([fromUserId, toUserId, memoryId])
+}
+
+model SharedMindMap {
+    id                                  String     @id
+    fromUserId                          String
+    toUserId                            String
+    mindMapId                           String
+    permission                          Permission
+    createdAt                           DateTime   @default(now())
+    User_SharedMindMap_fromUserIdToUser User       @relation("SharedMindMap_fromUserIdToUser", fields: [fromUserId], references: [id])
+    MindMap                             MindMap    @relation(fields: [mindMapId], references: [id])
+    User_SharedMindMap_toUserIdToUser   User       @relation("SharedMindMap_toUserIdToUser", fields: [toUserId], references: [id])
+
+    @@unique([fromUserId, toUserId, mindMapId])
+}
+
+model User {
+    id                                           String          @id
+    name                                         String
+    email                                        String          @unique
+    pfp                                          String?
+    password                                     String?
+    createdAt                                    DateTime        @default(now())
+    updatedAt                                    DateTime
+    accountType                                  AccountType     @default(FREE)
+    memoryCount                                  Int             @default(0)
+    // currentBalance                               Int             @default(0)
+    // totalUsedTokens                              Int             @default(0)
+    ApiKeys                                      ApiKeys[]
+    Conversation                                 Conversation[]
+    Memory                                       Memory[]
+    SharedMemory_SharedMemory_fromUserIdToUser   SharedMemory[]  @relation("SharedMemory_fromUserIdToUser")
+    SharedMemory_SharedMemory_toUserIdToUser     SharedMemory[]  @relation("SharedMemory_toUserIdToUser")
+    SharedMindMap_SharedMindMap_fromUserIdToUser SharedMindMap[] @relation("SharedMindMap_fromUserIdToUser")
+    SharedMindMap_SharedMindMap_toUserIdToUser   SharedMindMap[] @relation("SharedMindMap_toUserIdToUser")
+    SocialUser                                   SocialUser[]
+    Session                                      Session[]
+    AccessTokens                                 AccessTokens[]
+
+    ConnectedNotionPages                                   ConnectedNotionPages[]
+    ConnectedGDriveFiles                                   ConnectedGDriveFiles[]
+    MindMap                                                MindMap[]
+    Feedback                                               Feedback[]
+    SharedConversation_SharedConversation_fromUserIdToUser SharedConversation[]   @relation("SharedConversation_fromUserIdToUser")
+    SharedConversation_SharedConversation_toUserIdToUser   SharedConversation[]   @relation("SharedConversation_toUserIdToUser")
+    SharedConversation                                     SharedConversation[]
+    Usage                                                  Usage[]
+}
+
+model SocialUser {
+    id           String   @id
+    userId       String
+    type         String
+    provider     String
+    providerId   String
+    refreshToken String?
+    accessToken  String?
+    expiresAt    BigInt?
+    token_id     String?
+    scope        String?
+    sessionState String?
+    tokenType    String?
+    updatedAt    DateTime @default(now())
+    User         User     @relation(fields: [userId], references: [id])
+
+    @@unique([provider, providerId])
+    @@index([provider, providerId])
+    @@index([userId])
+}
+
+model memory_search_vector {
+    memid         String
+    chunkid       String
+    search_vector Unsupported("tsvector")?
+
+    @@id([memid, chunkid])
+}
+
+model VerificationToken {
+    identifier String
+    token      String
+    expires    DateTime
+
+    @@id([identifier, token])
+}
+
+model Session {
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model AccessTokens {
+    userId        String
+    platform      String
+    token         String
+    botId         String?
+    workspaceName String?
+    workspaceId   String?
+    expires       DateTime?
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    user User @relation(fields: [userId], references: [id])
+
+    @@id([userId, platform])
+}
+
+model ConnectedNotionPages {
+    userId        String
+    pageId        String
+    state         String
+    workspaceName String
+    title         String
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    User          User     @relation(fields: [userId], references: [id])
+
+    @@id([userId, pageId])
+}
+
+model ConnectedGDriveFiles {
+    userId    String
+    fileId    String
+    state     String
+    name      String
+    mimeType  String
+    url       String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    User      User     @relation(fields: [userId], references: [id])
+
+    @@id([userId, fileId])
+}
+
+model Feedback {
+    id        String       @id
+    userId    String
+    content   String
+    mediaUrl  String?
+    type      FeedbackType
+    createdAt DateTime     @default(now())
+    User      User         @relation(fields: [userId], references: [id])
+}
+
+model Waitlist {
+    email     String      @id
+    createdAt DateTime    @default(now())
+    type      AccountType
+}
+
+enum FeedbackType {
+    BUG
+    CHAT
+}
+
+enum AccountType {
+    FREE
+    PREMIUM
+    ENTERPRISE
+    ALPHA_FREE
+    BETA_FREE
+    BETA_PREMIUM
+    ALPHA_PREMIUM
+    ALPHA_ONE_TIME
+}
+
+enum ConversationStatus {
+    ACTIVE
+    ARCHIVED
+    DELETED
+}
+
+enum Permission {
+    VIEW
+    EDIT
+}
+
+model SharedConversation {
+    id                                       String       @id
+    fromUserId                               String
+    toUserId                                 String
+    conversationId                           String
+    permission                               Permission
+    createdAt                                DateTime     @default(now())
+    User_SharedConversation_fromUserIdToUser User         @relation("SharedConversation_fromUserIdToUser", fields: [fromUserId], references: [id])
+    User_SharedConversation_toUserIdToUser   User         @relation("SharedConversation_toUserIdToUser", fields: [toUserId], references: [id])
+    Conversation                             Conversation @relation(fields: [conversationId], references: [id])
+    User                                     User?        @relation(fields: [userId], references: [id])
+    userId                                   String?
+
+    @@unique([fromUserId, toUserId, conversationId])
+}
+
+model Usage {
+    id         BigInt        @id @default(autoincrement())
+    userId     String
+    apiKey     String?
+    category   UsageCategory // High-level category (INFERENCE or PROCESSING)
+    type       UsageType // Specific type within category
+    model      ModelType
+    tokenCount BigInt
+    requestId  String        @unique
+    timestamp  DateTime      @default(now())
+    user       User          @relation(fields: [userId], references: [id])
+
+    @@index([userId, category, timestamp])
+    @@index([apiKey, category, timestamp])
+}
+
+model NotificationPreferenceUnSubscribed {
+    id        BigInt           @id @default(autoincrement())
+    emailId   String
+    type      NotificationType
+    createdAt DateTime         @default(now())
+    updatedAt DateTime         @updatedAt
+}
+
+enum NotificationType {
+    NEW_MEMORY_SUCCESS
+    NEW_MEMORY_FAILURE
+    NEW_SHARED_MEMORY
+    NEW_SHARED_CONVERSATION
+    NEW_SHARED_MINDMAP
+    PROMOTIONAL
+    FEATURE_UPDATE
+}
+
+enum UsageCategory {
+    INFERENCE
+    PROCESSING
+}
+
+enum UsageType {
+    WEB_SEARCH
+    RERANKING
+    PROCESSING
+    EMBEDDING
+}
+
+enum ModelType {
+    GPT_4O
+    GPT_4O_MINI
+    SONNET
+    HAIKU
+    LLAMA_3_1
+    LLAMA_3_2
+    GEMINI_1_5_FLASH
+    GEMINI_1_5_PRO
+    DEEPSEEK_V3
+}
